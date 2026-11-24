@@ -9,5 +9,5 @@ sudo apt-get install -y --no-install-recommends \
     qt6-base-dev libgl-dev libglu1-mesa-dev zlib1g-dev libzstd-dev \
     libocct-foundation-dev libocct-modeling-data-dev libocct-modeling-algorithms-dev \
     libocct-visualization-dev libocct-data-exchange-dev libocct-ocaf-dev libocct-draw-dev \
-    occt-misc \
+    occt-misc libtbb-dev libfreetype-dev \
     catch2
