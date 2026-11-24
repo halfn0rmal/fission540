@@ -1,5 +1,6 @@
 add_library(fission_features
     src/BoxFeature.cpp
+    src/ImportedBodyFeature.cpp
 )
 add_library(Fission::features ALIAS fission_features)
 target_include_directories(fission_features PUBLIC include)

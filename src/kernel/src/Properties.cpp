@@ -2,6 +2,7 @@
 
 #include "fission/kernel/occt/Native.h"
 
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
 #include <TopExp_Explorer.hxx>
@@ -33,6 +34,21 @@ int faceCount(const Shape& shape) {
         ++count;
     }
     return count;
+}
+
+int solidCount(const Shape& shape) {
+    int count = 0;
+    for (TopExp_Explorer it(occt::native(shape), TopAbs_SOLID); it.More(); it.Next()) {
+        ++count;
+    }
+    return count;
+}
+
+bool isValid(const Shape& shape) {
+    if (shape.isNull()) {
+        return false;
+    }
+    return BRepCheck_Analyzer(occt::native(shape)).IsValid();
 }
 
 } // namespace fission::kernel

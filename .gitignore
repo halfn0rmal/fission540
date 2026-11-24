@@ -6,3 +6,10 @@ CMakeUserPresets.json
 *.user
 .vscode/
 .idea/
+
+# Never commit Fusion design files (private user data / Autodesk content)
+*.f3d
+*.f3z
+*.smb
+*.smbh
+tools/f3d/samples/

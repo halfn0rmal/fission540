@@ -22,6 +22,7 @@ message(STATUS "OpenCASCADE ${OpenCASCADE_VERSION} at ${OpenCASCADE_INSTALL_PREF
 add_subdirectory(src/kernel)
 add_subdirectory(src/core)
 add_subdirectory(src/features)
+add_subdirectory(src/io)
 
 if(FISSION_BUILD_APP)
     find_package(Qt6 REQUIRED COMPONENTS Widgets)

@@ -1,6 +1,8 @@
 #include "fission/ui/MainWindow.h"
 
 #include "fission/features/BoxFeature.h"
+#include "fission/features/ImportedBodyFeature.h"
+#include "fission/io/F3dImport.h"
 #include "fission/kernel/Properties.h"
 #include "fission/ui/BoxDialog.h"
 #include "fission/viewer/OcctViewport.h"
@@ -8,12 +10,17 @@
 #include <QAction>
 #include <QComboBox>
 #include <QDockWidget>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QListWidget>
 #include <QMenuBar>
+#include <QMessageBox>
+#include <QStringList>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QTreeWidget>
 
+#include <exception>
 #include <memory>
 
 namespace fission::ui {
@@ -34,6 +41,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
 void MainWindow::createActions() {
     auto* fileMenu = menuBar()->addMenu(tr("&File"));
+    QAction* importAction = fileMenu->addAction(tr("&Import..."));
+    importAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_I));
+    connect(importAction, &QAction::triggered, this, &MainWindow::importFile);
+    fileMenu->addSeparator();
     QAction* quit = fileMenu->addAction(tr("&Quit"));
     quit->setShortcut(QKeySequence::Quit);
     connect(quit, &QAction::triggered, this, &QWidget::close);
@@ -92,6 +103,40 @@ void MainWindow::addBox() {
     m_document.timeline().insert(
         std::make_unique<features::BoxFeature>(id, name, dialog.params()));
     recompute();
+}
+
+void MainWindow::importFile() {
+    const QString path = QFileDialog::getOpenFileName(this, tr("Import"), QString(),
+                                                      tr("Fusion 360 design (*.f3d)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    io::F3dImportResult result;
+    try {
+        result = io::importF3d(path.toStdString());
+    } catch (const std::exception& e) {
+        QMessageBox::critical(this, tr("Import failed"), QString::fromUtf8(e.what()));
+        return;
+    }
+
+    const std::string name = QFileInfo(path).completeBaseName().toStdString();
+    m_document.timeline().insert(std::make_unique<features::ImportedBodyFeature>(
+        m_document.nextFeatureId(), name, result.shape, path.toStdString()));
+    recompute();
+
+    QString summary = tr("Imported %1 bodies, %2 faces.").arg(result.bodies).arg(result.faces);
+    if (result.skippedFaces > 0) {
+        summary += tr(" %1 faces could not be read.").arg(result.skippedFaces);
+    }
+    if (!result.warnings.empty()) {
+        QStringList lines;
+        for (const auto& w : result.warnings) {
+            lines << QString::fromStdString(w);
+        }
+        QMessageBox::warning(this, tr("Import"), summary + "\n\n" + lines.join('\n'));
+    } else {
+        statusBar()->showMessage(summary);
+    }
 }
 
 void MainWindow::onTimelineActivated(QListWidgetItem* item) {

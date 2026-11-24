@@ -6,7 +6,7 @@ set -euo pipefail
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build git pkg-config \
-    qt6-base-dev libgl-dev libglu1-mesa-dev \
+    qt6-base-dev libgl-dev libglu1-mesa-dev zlib1g-dev libzstd-dev \
     libocct-foundation-dev libocct-modeling-data-dev libocct-modeling-algorithms-dev \
     libocct-visualization-dev libocct-data-exchange-dev libocct-ocaf-dev libocct-draw-dev \
     occt-misc \

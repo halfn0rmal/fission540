@@ -22,12 +22,24 @@ ctest --preset release
 
 On Wayland the app runs through XWayland (`QT_QPA_PLATFORM=xcb` is set automatically) because the OCCT viewer uses a native X11 window.
 
+## Opening Fusion 360 files
+
+File > Import reads `.f3d` geometry directly (bodies, all faces/edges). Sketches, timeline and component placement are not decoded yet. See [docs/formats/f3d.md](docs/formats/f3d.md).
+
+Command-line check / conversion:
+
+```sh
+./build/release/src/io/fission-f3d2step design.f3d out.step
+FISSION_F3D_SAMPLES=~/f3d-samples ctest --preset release -R f3d   # import a folder of your designs
+```
+
 ## Layout
 
 ```
 src/kernel    B-rep interface + OCCT implementation
 src/core      Document, features, timeline
 src/features  Concrete modelling features
+src/io        File import/export (Fusion .f3d reader, STEP)
 src/viewer    OCCT 3D viewport widget
 src/ui        Main window, browser, timeline
 app/          Executable entry point

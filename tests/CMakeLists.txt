@@ -10,8 +10,10 @@ endif()
 add_executable(fission_tests
     kernel/test_primitives.cpp
     core/test_timeline.cpp
+    io/test_sab.cpp
+    io/test_f3d_samples.cpp
 )
-target_link_libraries(fission_tests PRIVATE Fission::features Catch2::Catch2WithMain)
+target_link_libraries(fission_tests PRIVATE Fission::features Fission::io Catch2::Catch2WithMain)
 fission_set_warnings(fission_tests)
 
 include(Catch)

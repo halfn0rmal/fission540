@@ -28,6 +28,7 @@ private:
     void createTimeline();
 
     void addBox();
+    void importFile();
     void onTimelineActivated(QListWidgetItem* item);
     void recompute();
     void refreshPanels();

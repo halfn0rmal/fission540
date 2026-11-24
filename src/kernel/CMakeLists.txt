@@ -3,6 +3,7 @@ add_library(fission_kernel
     src/Primitives.cpp
     src/Booleans.cpp
     src/Properties.cpp
+    src/Compound.cpp
 )
 add_library(Fission::kernel ALIAS fission_kernel)
 target_include_directories(fission_kernel PUBLIC include)

@@ -19,7 +19,7 @@ fission540/
     sketch/     2D sketch entities, constraints, PlaneGCS solver (vendored from FreeCAD, LGPL), projection/intersection of model geometry.
     features/   Extrude, revolve, sweep, loft, rib, hole, thread, fillet, chamfer, shell, draft, scale, combine, split, pattern (rect/circ/path), mirror, thicken, offset face, press-pull, construction planes/axes/points, surface features, sheet metal.
     assembly/   Components, joints (rigid, revolute, slider, cylindrical, pin-slot, planar, ball), as-built joints, joint limits, motion links, contact/interference, rigid-body joint solver.
-    io/         Native .f540 format (zip: JSON timeline + parameters + cached BREP + thumbnails), STEP/IGES (OCCT XDE, with colours/assemblies), STL/3MF/OBJ, DXF import to sketch.
+    io/         .f3d reader (zip + zstd, ShapeManager B-rep), native .f540 format (zip: JSON timeline + parameters + cached BREP + thumbnails), STEP/IGES (OCCT XDE, with colours/assemblies), STL/3MF/OBJ, DXF import to sketch.
     drawing/    Sheets, base/projected/section/detail/broken views (OCCT HLRBRep), dimensions, centre marks, GD&T, BOM + balloons, title blocks, PDF/DXF/SVG export.
     render/     LuxCoreRender (Apache-2.0) integration: materials/appearances library, HDRI environments, decals, offline + interactive render.
     sim/        Netgen (LGPL) tet meshing, CalculiX (ccx, run as external process) solver, setup UI (materials, loads, constraints, contacts), results post-processing (stress/displacement/safety factor, deformed shape, probes). Studies: static, modal, thermal, buckling.
@@ -69,7 +69,9 @@ Python API + add-ins + console, keyboard shortcut customisation, preferences, pe
 Roughly: phases 0–3 are the minimum to replace Fusion for everyday part/assembly design. Each phase is multiple months of iteration, mainly on robustness.
 
 ## Fusion 360 migration (import)
-Native `.f3d`/`.f3z` files are an undocumented Autodesk format (zip of ShapeManager B-rep + internal design data). No open parser exists, so they are not read directly. Two routes instead:
+**Direct `.f3d` reading (in progress, `src/io`, format notes in `docs/formats/f3d.md`):** the container and the B-rep geometry (ShapeManager binary, ACIS SAB-compatible) are decoded and imported. Next: component placement, then parametric history (sketches, features, parameters), which needs differential analysis of test designs made in Fusion.
+
+Complementary routes:
 
 1. **STEP import (Phase 0/2):** STEP AP214/AP242 exported from Fusion, read via OCCT XDE, keeping the assembly tree, component names, colours and placements. Geometry only: no timeline, sketches, parameters or joints. Imported bodies become base features that can be built on.
 2. **Fusion exporter add-in (`tools/fusion-exporter/`, Python, Fusion API):** runs inside Fusion 360 and writes each design to a `.f540x` bundle: JSON for user/model parameters, sketches (entities, constraints, dimensions), timeline features with their inputs, components/occurrences/transforms, joints, plus a STEP of every component as fallback geometry. It runs on Windows, so it must be written early so designs can be exported before Windows is removed. Fission540 imports the bundle and rebuilds each timeline entry as a native parametric feature where that feature type exists; unsupported features are imported as frozen B-rep from the STEP fallback and flagged in the timeline. Import coverage grows with each phase.
