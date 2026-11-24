@@ -68,15 +68,25 @@ Python API + add-ins + console, keyboard shortcut customisation, preferences, pe
 
 Roughly: phases 0–3 are the minimum to replace Fusion for everyday part/assembly design. Each phase is multiple months of iteration, mainly on robustness.
 
-## Fusion 360 migration (import)
-**Direct `.f3d` reading (in progress, `src/io`, format notes in `docs/formats/f3d.md`):** the container and the B-rep geometry (ShapeManager binary, ACIS SAB-compatible) are decoded and imported. Next: component placement, then parametric history (sketches, features, parameters), which needs differential analysis of test designs made in Fusion.
+## Fusion 360 compatibility (both directions)
+Goal: designs move between Fission540 and Fusion 360 in both directions, parametric where possible. The native format stays `.f540`; Fusion's format is undocumented, changes with Fusion updates, and cannot be tested on Linux, so it is not used as the native save format.
 
-Complementary routes:
+**Fusion → Fission540**
 
-1. **STEP import (Phase 0/2):** STEP AP214/AP242 exported from Fusion, read via OCCT XDE, keeping the assembly tree, component names, colours and placements. Geometry only: no timeline, sketches, parameters or joints. Imported bodies become base features that can be built on.
-2. **Fusion exporter add-in (`tools/fusion-exporter/`, Python, Fusion API):** runs inside Fusion 360 and writes each design to a `.f540x` bundle: JSON for user/model parameters, sketches (entities, constraints, dimensions), timeline features with their inputs, components/occurrences/transforms, joints, plus a STEP of every component as fallback geometry. It runs on Windows, so it must be written early so designs can be exported before Windows is removed. Fission540 imports the bundle and rebuilds each timeline entry as a native parametric feature where that feature type exists; unsupported features are imported as frozen B-rep from the STEP fallback and flagged in the timeline. Import coverage grows with each phase.
+1. **Direct `.f3d` reading (in progress, `src/io`, format notes in `docs/formats/f3d.md`):** container, B-rep geometry (ShapeManager binary, ACIS SAB-compatible) and component placement are decoded and imported; a committed sample (`tests/data/f3d/`) is imported in CI. Next: parametric history (sketches, features, parameters), which needs differential analysis of test designs made in Fusion.
+2. **STEP import (Phase 0/2):** STEP AP214/AP242 exported from Fusion, read via OCCT XDE, keeping the assembly tree, component names, colours and placements. Geometry only. Imported bodies become base features that can be built on.
 
-Batch mode: the add-in can walk a Fusion project/hub folder and export every design in one run.
+**Fusion bridge add-in (`tools/fusion-bridge/`, Python, Fusion API)** — one add-in, both directions, runs inside Fusion on Windows/macOS:
+
+- **Export:** writes each design to a `.f540x` bundle: JSON for user/model parameters, sketches (entities, constraints, dimensions), timeline features with their inputs, components/occurrences/transforms, joints, plus a STEP of every component as fallback geometry. Fission540 rebuilds each timeline entry as a native parametric feature where that feature type exists; unsupported features come in as frozen B-rep from the STEP fallback and are flagged in the timeline. Batch mode walks a Fusion project/hub folder and exports every design in one run.
+- **Import:** reads a `.f540` (or `.f540x`) and rebuilds it in Fusion through the API: parameters, sketches, timeline features, components, joints. Features Fusion's API cannot express are inserted as base-feature bodies and listed in a report. This is the supported way to open a Fission540 design in Fusion with its history.
+- The `.f540x` JSON schema is shared by both directions and versioned in `docs/formats/f540x.md`, so the add-in and Fission540 agree on one mapping per feature type.
+- **Time-sensitive:** export must exist before Windows is removed; import needs a Windows or macOS machine with Fusion to test. Round-trip tests (Fusion → `.f540x` → Fission540 → `.f540` → Fusion) use the same test designs as the `.f3d` analysis.
+
+**Fission540 → `.f3d` direct writing (experimental):**
+
+1. **Geometry-only `.f3d` export (early experiment, needs a Fusion test session):** write a minimal `.f3d` with components, occurrences, placements and bodies (SAB blobs with the attributes the design segment references) and check what Fusion opens. Outcome decides whether direct writing is viable; result goes in `docs/formats/f3d.md`.
+2. **Parametric `.f3d` writing (long term, conditional):** only after the reader decodes timeline/sketches/features and step 1 shows Fusion accepts files we write. Needs re-testing against each Fusion release.
 
 ## Status
 - Phase 0 skeleton in place: kernel (box + booleans + properties), core (Document/Feature/Timeline with rollback marker, suppression, error state), BoxFeature, Qt main window with browser/timeline docks, OCCT viewport (native X11 window, Fusion-style middle-mouse navigation, ViewCube), Catch2 tests, Linux CI.
