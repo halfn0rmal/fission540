@@ -229,7 +229,11 @@ F3dImportResult importF3d(const std::filesystem::path& path) {
     }
 
     if (result.blobs == 0) {
-        throw IoError("no readable B-rep geometry in " + path.string());
+        std::string message = "no readable B-rep geometry in " + path.string();
+        for (const std::string& w : result.warnings) {
+            message += "\n  " + w;
+        }
+        throw IoError(message);
     }
     result.shape = kernel::occt::wrap(all);
     return result;
