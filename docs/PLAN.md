@@ -24,7 +24,7 @@ fission540/
     render/     LuxCoreRender (Apache-2.0) integration: materials/appearances library, HDRI environments, decals, offline + interactive render.
     sim/        Netgen (LGPL) tet meshing, CalculiX (ccx, run as external process) solver, setup UI (materials, loads, constraints, contacts), results post-processing (stress/displacement/safety factor, deformed shape, probes). Studies: static, modal, thermal, buckling.
     ui/         Qt6 main window: workspace switcher, ribbon toolbar, browser tree, timeline bar (drag/reorder/rollback/suppress), command dialogs, marking menu (right-click radial), ViewCube, navigation (orbit/pan/zoom presets incl. Fusion mouse mapping), selection filters, measure, section analysis.
-    viewer/     OCCT AIS/V3d in QOpenGLWidget: PBR shading, edges, transparency, highlight, analysis overlays (zebra, curvature, draft).
+    viewer/     OCCT AIS/V3d in a native X11 child window (QOpenGLWidget later): PBR shading, edges, transparency, highlight, analysis overlays (zebra, curvature, draft).
     scripting/  pybind11 Python API mirroring the document/feature model; add-in loader; text command console.
   tests/        Catch2 unit tests + geometry regression corpus (models + expected volume/area/face counts).
   third_party/  PlaneGCS, libdxfrw (vendored); OCCT, Qt6, Eigen, Boost, LuxCore, Netgen, pybind11 via system packages or CMake FetchContent.
@@ -40,7 +40,7 @@ Key design points:
 ## Phases (each ends with a usable build)
 
 **Phase 0 — Skeleton (week 1–2)**
-CMake build on Ubuntu 24.04 (OCCT 7.8 built from source; Qt6 from apt), CI (GitHub Actions, Linux), Qt main window + OCCT viewer showing a box, orbit/pan/zoom, ViewCube, STEP import/display.
+CMake build on Ubuntu 24.04 (OCCT 7.8 built from source; Qt6 from apt), CI (GitHub Actions, Linux), Qt main window + OCCT viewer showing a box, orbit/pan/zoom, ViewCube, STEP import/display (with assembly structure).
 
 **Phase 1 — Sketcher**
 Sketch on plane/face, line/arc/circle/rectangle/polygon/spline/slot/ellipse/conic/text, trim/extend/offset/fillet/mirror/pattern, all Fusion constraints, driving/driven dimensions, PlaneGCS solving with fully-constrained colouring, project/include geometry, construction geometry.
@@ -68,12 +68,17 @@ Python API + add-ins + console, keyboard shortcut customisation, preferences, pe
 
 Roughly: phases 0–3 are the minimum to replace Fusion for everyday part/assembly design. Each phase is multiple months of iteration, mainly on robustness.
 
-## Immediate execution (this session)
-1. `git init` in `C:\GrantElectronics\Fission540`, branch `main`, add remote `https://github.com/halfn0rmal/fission540.git`.
-2. Copy this plan to `docs/PLAN.md`. Add `README.md`, `LICENSE` (GPL-3.0-or-later), `.gitignore`, `.editorconfig`, `.clang-format`. First commit.
-3. Phase 0 skeleton: `CMakeLists.txt` + `CMakePresets.json`, `scripts/setup-ubuntu.sh`, module directories with stub libraries (`kernel` with OCCT-backed `Shape` + `makeBox`, `core` with `Document`/`Feature`/`Timeline` stubs), `app/main.cpp` with Qt6 `MainWindow` + `OcctViewport` (QOpenGLWidget + AIS_ViewCube showing a box), Catch2 test for the box volume, GitHub Actions Linux CI workflow. Second commit.
-4. `git push -u origin main`.
-The skeleton can't be compiled here (Windows, Linux-only target), so the first CI run or a build on your Linux box is the first compile check.
+## Fusion 360 migration (import)
+Native `.f3d`/`.f3z` files are an undocumented Autodesk format (zip of ShapeManager B-rep + internal design data). No open parser exists, so they are not read directly. Two routes instead:
+
+1. **STEP import (Phase 0/2):** STEP AP214/AP242 exported from Fusion, read via OCCT XDE, keeping the assembly tree, component names, colours and placements. Geometry only: no timeline, sketches, parameters or joints. Imported bodies become base features that can be built on.
+2. **Fusion exporter add-in (`tools/fusion-exporter/`, Python, Fusion API):** runs inside Fusion 360 and writes each design to a `.f540x` bundle: JSON for user/model parameters, sketches (entities, constraints, dimensions), timeline features with their inputs, components/occurrences/transforms, joints, plus a STEP of every component as fallback geometry. It runs on Windows, so it must be written early so designs can be exported before Windows is removed. Fission540 imports the bundle and rebuilds each timeline entry as a native parametric feature where that feature type exists; unsupported features are imported as frozen B-rep from the STEP fallback and flagged in the timeline. Import coverage grows with each phase.
+
+Batch mode: the add-in can walk a Fusion project/hub folder and export every design in one run.
+
+## Status
+- Phase 0 skeleton in place: kernel (box + booleans + properties), core (Document/Feature/Timeline with rollback marker, suppression, error state), BoxFeature, Qt main window with browser/timeline docks, OCCT viewport (native X11 window, Fusion-style middle-mouse navigation, ViewCube), Catch2 tests, Linux CI.
+- Uses Ubuntu 24.04's OCCT 7.6 for now; move to OCCT 7.8+ built from source when needed.
 
 ## Critical early files
 - `CMakeLists.txt`, `CMakePresets.json`, `scripts/setup-ubuntu.sh` (deps + OCCT build)
