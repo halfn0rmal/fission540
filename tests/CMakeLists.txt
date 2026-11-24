@@ -16,6 +16,7 @@ add_executable(fission_tests
 )
 target_link_libraries(fission_tests PRIVATE Fission::features Fission::io Catch2::Catch2WithMain)
 fission_set_warnings(fission_tests)
+target_compile_definitions(fission_tests PRIVATE FISSION_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 include(Catch)
 # Catch2 exits with 4 when every selected test is skipped (e.g. no local .f3d samples).

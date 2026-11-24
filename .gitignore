@@ -13,5 +13,7 @@ CMakeUserPresets.json
 *.smb
 *.smbh
 tools/f3d/samples/
+# Except test samples the owner chose to publish
+!tests/data/f3d/*.f3d
 __pycache__/
 *.pyc
