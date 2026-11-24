@@ -21,4 +21,19 @@ jobs:
         run: cmake --build --preset ci
 
       - name: Test
-        run: ctest --preset ci
+        run: |
+          set -o pipefail
+          ctest --preset ci 2>&1 | tee ctest.log
+
+      # Job logs need a GitHub login; annotations are public. Publish the
+      # failing test output so it can be read without signing in.
+      - name: Annotate test failures
+        if: failure()
+        run: |
+          [ -f ctest.log ] || exit 0
+          tail -c 60000 ctest.log | grep -v -E '^\s*$' | tail -n 400 > tail.log
+          split -l 40 tail.log part_
+          for f in part_*; do
+            msg=$(sed -e 's/%/%25/g' "$f" | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::error title=ctest ($f)::$msg"
+          done
