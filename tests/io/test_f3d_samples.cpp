@@ -24,13 +24,20 @@ namespace fs = std::filesystem;
 
 namespace {
 
+std::string joinWarnings(const io::F3dImportResult& result) {
+    std::string out;
+    for (const auto& w : result.warnings) {
+        out += "
+  warning: " + w;
+    }
+    return out;
+}
+
 // Checks that hold for every design the importer supports.
 io::F3dImportResult importAndCheck(const fs::path& path) {
     INFO(path.filename().string());
     io::F3dImportResult result = io::importF3d(path);
-    for (const auto& w : result.warnings) {
-        UNSCOPED_INFO("warning: " << w);
-    }
+    INFO(joinWarnings(result));
     CHECK(result.skippedFaces == 0);
     CHECK(result.solids > 0);
     CHECK(kernel::isValid(result.shape));
@@ -46,9 +53,10 @@ TEST_CASE("Import committed .f3d sample", "[io][f3d]") {
     const fs::path path = fs::path(FISSION_TEST_DATA_DIR) / "f3d" / "TJ-AshTrayDelete.f3d";
     REQUIRE(fs::is_regular_file(path));
     const io::F3dImportResult result = importAndCheck(path);
+    INFO(joinWarnings(result));
     CHECK(result.blobs == 1);
     CHECK(result.bodies == 5);
-    CHECK(result.solids >= 5);
+    CHECK(result.solids == 5);
     REQUIRE(result.instances.size() == 1);
     CHECK(result.instances[0].component == "Part Number");
 }
@@ -81,6 +89,7 @@ TEST_CASE("Import local .f3d samples", "[io][f3d]") {
         const std::string name = entry.path().filename().string();
         INFO(name);
         const io::F3dImportResult result = importAndCheck(entry.path());
+        INFO(joinWarnings(result));
         if (auto it = expected.find(name); it != expected.end()) {
             CHECK_THAT(kernel::volume(result.shape), Catch::Matchers::WithinRel(it->second, 1e-4));
         }

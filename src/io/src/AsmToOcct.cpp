@@ -1,5 +1,6 @@
 #include "AsmToOcct.h"
 
+#include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
@@ -18,6 +19,7 @@
 #include <TColStd_Array1OfInteger.hxx>
 #include <TColStd_Array1OfReal.hxx>
 #include <TColgp_Array1OfPnt.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
@@ -27,6 +29,7 @@
 #include <TopoDS_Solid.hxx>
 #include <TopoDS_Vertex.hxx>
 #include <TopoDS_Wire.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Trsf.hxx>
@@ -54,7 +57,7 @@ namespace lump { constexpr std::size_t next = 3, shell = 4; }
 namespace shell { constexpr std::size_t next = 3, face = 5; }
 namespace face { constexpr std::size_t next = 3, loop = 4, surface = 7, sense = 8; }
 namespace loop { constexpr std::size_t next = 3, coedge = 4; }
-namespace coedge { constexpr std::size_t next = 3, edge = 6, sense = 7; }
+namespace coedge { constexpr std::size_t next = 3, partner = 5, edge = 6, sense = 7; }
 namespace edge { constexpr std::size_t start = 3, startParam = 4, end = 5, endParam = 6, curve = 8, sense = 9; }
 namespace vertex { constexpr std::size_t point = 5; }
 namespace point { constexpr std::size_t position = 3; }
@@ -209,6 +212,10 @@ public:
             bodyRecords += m_doc.records[i].type == "body" ? 1 : 0;
         }
         m_stats.ignoredBodies = bodyRecords - m_stats.bodies;
+        if (m_stats.sewedShells > 0) {
+            m_stats.warnings.push_back(std::to_string(m_stats.sewedShells) +
+                                       " shell(s) closed by sewing");
+        }
         for (const auto& [type, n] : m_unsupported) {
             m_stats.warnings.push_back("unsupported " + type + " (" + std::to_string(n) + ")");
         }
@@ -511,6 +518,62 @@ private:
         return fix.Face();
     }
 
+    // True if every coedge of every face in the lump has a partner (a closed B-rep).
+    bool shellsClosedInFile(int lumpIndex) const {
+        bool closed = true;
+        chain(refAt(rec(lumpIndex), field::lump::shell), field::shell::next, [&](int shellIndex) {
+            chain(refAt(rec(shellIndex), field::shell::face), field::face::next, [&](int faceIndex) {
+                chain(refAt(rec(faceIndex), field::face::loop), field::loop::next, [&](int loopIndex) {
+                    chain(refAt(rec(loopIndex), field::loop::coedge), field::coedge::next,
+                          [&](int coedgeIndex) {
+                              if (refAt(rec(coedgeIndex), field::coedge::partner) < 0) {
+                                  closed = false;
+                              }
+                          });
+                });
+            });
+        });
+        return closed;
+    }
+
+    // Edges used by only one face (seams and degenerate edges excluded).
+    static int freeEdgeCount(const TopoDS_Shape& shape) {
+        TopTools_IndexedDataMapOfShapeListOfShape map;
+        TopExp::MapShapesAndAncestors(shape, TopAbs_EDGE, TopAbs_FACE, map);
+        int n = 0;
+        for (int i = 1; i <= map.Extent(); ++i) {
+            const TopoDS_Edge& e = TopoDS::Edge(map.FindKey(i));
+            if (BRep_Tool::Degenerated(e) || map(i).Extent() != 1 ||
+                BRep_Tool::IsClosed(e, TopoDS::Face(map(i).First()))) {
+                continue;
+            }
+            ++n;
+        }
+        return n;
+    }
+
+    TopoDS_Shell sewShell(const TopoDS_Shell& shell) {
+        const int freeBefore = freeEdgeCount(shell);
+        BRepBuilderAPI_Sewing sewing(std::max(100.0 * m_doc.resabs, 1e-6));
+        for (TopExp_Explorer ex(shell, TopAbs_FACE); ex.More(); ex.Next()) {
+            sewing.Add(ex.Current());
+        }
+        sewing.Perform();
+        const TopoDS_Shape sewed = sewing.SewedShape();
+        TopExp_Explorer ex(sewed, TopAbs_SHELL);
+        if (ex.More()) {
+            const TopoDS_Shell result = TopoDS::Shell(ex.Current());
+            ex.Next();
+            if (!ex.More() && BRep_Tool::IsClosed(result)) {
+                ++m_stats.sewedShells;
+                return result;
+            }
+        }
+        unsupported("shell left open: " + std::to_string(freeBefore) + " free edges, " +
+                    std::to_string(freeEdgeCount(sewed)) + " after sewing");
+        return shell;
+    }
+
     TopoDS_Shape lump(int index) {
         BRep_Builder builder;
         std::vector<TopoDS_Shell> shells;
@@ -536,6 +599,16 @@ private:
             });
             shells.push_back(sh);
         });
+
+        // A shell can come out open although every coedge has a partner in the file, when
+        // per-face fixing replaced shared edges (e.g. seams on full cylinders). Sew it.
+        if (shellsClosedInFile(index)) {
+            for (TopoDS_Shell& s : shells) {
+                if (!BRep_Tool::IsClosed(s)) {
+                    s = sewShell(s);
+                }
+            }
+        }
 
         TopoDS_Shape result;
         const bool allClosed = !shells.empty() &&

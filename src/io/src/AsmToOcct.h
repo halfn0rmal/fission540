@@ -16,6 +16,7 @@ struct ConversionStats {
     int skippedFaces = 0;
     int skippedEdges = 0;
     int ignoredBodies = 0; // feature-cache / sketch bodies not selected as current
+    int sewedShells = 0;   // shells closed by sewing after conversion
     std::vector<std::string> warnings;
 };
 
