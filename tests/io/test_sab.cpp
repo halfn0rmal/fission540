@@ -29,8 +29,8 @@ public:
         const char magic[] = "ASM BinaryFile4";
         m_buf.insert(m_buf.end(), magic, magic + 15);
         raw<std::int64_t>(22900);
-        raw<std::int32_t>(0);
-        raw<std::int32_t>(0);
+        raw<std::int32_t>(2); // top-level entities: asmheader + body
+        raw<std::int32_t>(2);
         str("Fission540 test");
         str("ASM 229.10.0.65535 NT");
         str("Mon Jan  1 00:00:00 2024");

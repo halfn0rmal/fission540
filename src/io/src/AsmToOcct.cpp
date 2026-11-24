@@ -18,6 +18,7 @@
 #include <TColStd_Array1OfInteger.hxx>
 #include <TColStd_Array1OfReal.hxx>
 #include <TColgp_Array1OfPnt.hxx>
+#include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Edge.hxx>
@@ -178,21 +179,36 @@ Handle(Geom_BSplineCurve) readBs3Curve(Cursor& c, bool rational) {
 
 class Converter {
 public:
-    Converter(const sab::Document& doc, ConversionStats& stats) : m_doc(doc), m_stats(stats) {}
+    Converter(const sab::Document& doc, ConversionStats& stats, BodySelection selection)
+        : m_doc(doc), m_stats(stats), m_selection(selection) {}
 
     TopoDS_Shape run() {
         BRep_Builder builder;
         TopoDS_Compound all;
         builder.MakeCompound(all);
-        for (std::size_t i = 0; i < m_doc.records.size(); ++i) {
-            if (m_doc.records[i].type == "body") {
-                TopoDS_Shape b = body(static_cast<int>(i));
-                if (!b.IsNull()) {
-                    builder.Add(all, b);
-                    ++m_stats.bodies;
-                }
+
+        bool requireClosed = false;
+        std::vector<int> candidates = selectBodies(requireClosed);
+        for (int index : candidates) {
+            const ConversionStats before = m_stats;
+            TopoDS_Shape b = body(index);
+            const bool hasSolid = !b.IsNull() && TopExp_Explorer(b, TopAbs_SOLID).More();
+            if (b.IsNull() || (requireClosed && !hasSolid)) {
+                // Roll back the counters for a body we are not keeping.
+                m_stats.solids = before.solids;
+                m_stats.faces = before.faces;
+                m_stats.skippedFaces = before.skippedFaces;
+                m_stats.skippedEdges = before.skippedEdges;
+                continue;
             }
+            builder.Add(all, b);
+            ++m_stats.bodies;
         }
+        int bodyRecords = 0;
+        for (std::size_t i = 0; i < m_doc.records.size(); ++i) {
+            bodyRecords += m_doc.records[i].type == "body" ? 1 : 0;
+        }
+        m_stats.ignoredBodies = bodyRecords - m_stats.bodies;
         for (const auto& [type, n] : m_unsupported) {
             m_stats.warnings.push_back("unsupported " + type + " (" + std::to_string(n) + ")");
         }
@@ -205,6 +221,61 @@ public:
     }
 
 private:
+    bool isBody(int index) const {
+        return index >= 0 && static_cast<std::size_t>(index) < m_doc.records.size() &&
+               m_doc.records[static_cast<std::size_t>(index)].type == "body";
+    }
+
+    // True if the entity's attribute chain holds a Timestamp_attrib_def attribute.
+    bool hasTimestamp(int index) const {
+        std::set<int> seen;
+        int a = refAt(rec(index), 0);
+        while (a >= 0 && seen.insert(a).second && static_cast<std::size_t>(a) < m_doc.records.size()) {
+            const Record& attr = rec(a);
+            for (const Token& t : attr.values) {
+                if (t.kind == TokenKind::String && t.s == "Timestamp_attrib_def") {
+                    return true;
+                }
+            }
+            if (attr.values.size() <= 3 || attr.values[3].kind != TokenKind::Ref) {
+                break;
+            }
+            a = static_cast<int>(attr.values[3].i); // next attribute
+        }
+        return false;
+    }
+
+    std::vector<int> selectBodies(bool& requireClosed) const {
+        std::vector<int> result;
+        const int count = static_cast<int>(m_doc.records.size());
+        if (m_selection == BodySelection::All || m_doc.entityCount <= 1 ||
+            m_doc.entityCount > count) {
+            for (int i = 0; i < count; ++i) {
+                if (isBody(i)) {
+                    result.push_back(i);
+                }
+            }
+            return result;
+        }
+        // Newer files tag design bodies with a timestamp attribute: take the tagged
+        // top-level bodies. Untagged bodies are feature caches and sketch profiles.
+        for (int i = 1; i < m_doc.entityCount; ++i) {
+            if (isBody(i) && hasTimestamp(i)) {
+                result.push_back(i);
+            }
+        }
+        if (!result.empty()) {
+            return result;
+        }
+        // Older files have no tags: current bodies are saved first (leading run of
+        // top-level body records); keep the closed ones to drop sketch profile sheets.
+        for (int i = 1; i < m_doc.entityCount && isBody(i); ++i) {
+            result.push_back(i);
+        }
+        requireClosed = true;
+        return result;
+    }
+
     const Record& rec(int index) const {
         if (index < 0 || static_cast<std::size_t>(index) >= m_doc.records.size()) {
             throw SabError("reference out of range: " + std::to_string(index));
@@ -540,6 +611,7 @@ private:
 
     const sab::Document& m_doc;
     ConversionStats& m_stats;
+    BodySelection m_selection;
     std::unordered_map<int, TopoDS_Vertex> m_vertices;
     std::unordered_map<int, TopoDS_Edge> m_edges;
     std::map<std::string, int> m_unsupported;
@@ -547,8 +619,9 @@ private:
 
 } // namespace
 
-TopoDS_Shape convertToOcct(const sab::Document& doc, ConversionStats& stats) {
-    return Converter(doc, stats).run();
+TopoDS_Shape convertToOcct(const sab::Document& doc, ConversionStats& stats,
+                           BodySelection selection) {
+    return Converter(doc, stats, selection).run();
 }
 
 } // namespace fission::io::detail

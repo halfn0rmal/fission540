@@ -7,6 +7,7 @@ add_library(fission_io
     src/Sab.cpp
     src/AsmToOcct.cpp
     src/F3dImport.cpp
+    src/F3dDesign.cpp
     src/StepExport.cpp
 )
 add_library(Fission::io ALIAS fission_io)

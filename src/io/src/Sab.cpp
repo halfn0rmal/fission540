@@ -117,7 +117,7 @@ Document parse(std::span<const std::uint8_t> data) {
     Lexer lex(data);
     lex.seek(kMagicLen);
     doc.version = lex.raw<std::int64_t>();
-    (void)lex.raw<std::int32_t>();
+    doc.entityCount = lex.raw<std::int32_t>();
     (void)lex.raw<std::int32_t>();
 
     // Header: product, ASM version, date (strings), then units, resabs, resnor (doubles),

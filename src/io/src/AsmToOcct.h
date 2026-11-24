@@ -15,11 +15,22 @@ struct ConversionStats {
     int faces = 0;
     int skippedFaces = 0;
     int skippedEdges = 0;
+    int ignoredBodies = 0; // feature-cache / sketch bodies not selected as current
     std::vector<std::string> warnings;
 };
 
-// Converts every body in a parsed ASM document to OCCT, scaled to millimetres.
+enum class BodySelection {
+    // Only the component's current bodies (heuristic, see docs/formats/f3d.md):
+    // the leading run of top-level body records; if the blob uses timestamp
+    // attributes, only tagged ones; otherwise only closed solids.
+    Current,
+    // Every body record in the blob (debugging).
+    All,
+};
+
+// Converts bodies in a parsed ASM document to OCCT, scaled to millimetres.
 // Faces with unsupported geometry are skipped and reported in `stats`.
-TopoDS_Shape convertToOcct(const sab::Document& doc, ConversionStats& stats);
+TopoDS_Shape convertToOcct(const sab::Document& doc, ConversionStats& stats,
+                           BodySelection selection = BodySelection::Current);
 
 } // namespace fission::io::detail

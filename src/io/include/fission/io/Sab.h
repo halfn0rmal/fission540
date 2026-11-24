@@ -55,6 +55,9 @@ struct Record {
 
 struct Document {
     std::int64_t version = 0;
+    // Number of top-level saved entities, counting the asmheader. They are records
+    // [0, entityCount); everything after is owned by them (e.g. feature caches).
+    int entityCount = 0;
     std::string product;
     std::string asmVersion;
     std::string date;

@@ -19,9 +19,17 @@ int main(int argc, char* argv[]) {
     try {
         const std::filesystem::path in = argv[1];
         const auto result = fission::io::importF3d(in);
-        std::printf("blobs=%d bodies=%d solids=%d faces=%d skipped_faces=%d volume_mm3=%.6f\n",
+        std::printf("blobs=%d bodies=%d solids=%d faces=%d skipped_faces=%d ignored_bodies=%d "
+                    "volume_mm3=%.6f\n",
                     result.blobs, result.bodies, result.solids, result.faces, result.skippedFaces,
-                    fission::kernel::volume(result.shape));
+                    result.ignoredBodies, fission::kernel::volume(result.shape));
+        for (const auto& inst : result.instances) {
+            const auto& m = inst.transform;
+            std::printf("instance %-24s T=(%.3f, %.3f, %.3f) mm  R=[%.4f %.4f %.4f | %.4f %.4f "
+                        "%.4f | %.4f %.4f %.4f]\n",
+                        inst.component.c_str(), m[3], m[7], m[11], m[0], m[1], m[2], m[4], m[5],
+                        m[6], m[8], m[9], m[10]);
+        }
         for (const auto& w : result.warnings) {
             std::printf("warning: %s\n", w.c_str());
         }

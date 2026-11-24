@@ -93,11 +93,41 @@ Intervals are `true <double>` (bounded) or `false` (unbounded), so field positio
 
 Not seen in samples yet (need test files): `sphere`, `spline` surfaces (lofts, variable fillets, freeform), `nurbs` (rational), non-identity body transforms.
 
-## Design data (MetaStream / BulkStream) [unknown]
+## Design data (MetaStream / BulkStream)
 
-Object graph serialisation. MetaStream lists types as (module name, class GUID) pairs, with modules `Fusion`, `CommonData`, `Geometry`, `MSketch`, `Dimension`, `EntityTracking`, `Scene`. No class names, only GUIDs.
-BulkStream contains records referencing those types. Some field and enum names are visible: `SketchesRoot`, `ComponentsRoot`, `ComponentInstancesRoot`, `DcSketchMetaType`, `crv_primary_id`, `pt_tag`, `EdgeStartVertexProgenitor`, unit system tables (`MmMKS`, `CmMKS`).
+Tools: `tools/f3d/design_stream.py` (type table, index, object dumps), `tools/f3d/occurrences.py`,
+`tools/f3d/import_plan.py` (prints exactly what the importer will place).
 
-Decoding plan: differential analysis. Create minimal designs in Fusion that differ by one change (empty, one sketch line, one dimension value, one extrude, extrude distance changed, one component, one joint…) and diff the streams to map GUIDs to feature types and fields.
+### MetaStream [verified]
+- **Type table**: entries `u32 36, class GUID (ASCII), u32 36, parent class GUID, u32 index, u32 n, module name, u32 count, count × u64 object id`.
+  This is a class hierarchy: only concrete classes list objects. Modules seen: `Fusion`, `CommonData`, `Geometry`, `Component`, `Body`, `MSketch`, `Dimension`, `EntityTracking`, `Scene`.
+  Class GUIDs are identical across all samples (2024–2025 builds).
+- **Index** at the end: `(u64 BulkStream offset, u64 id)` pairs, both increasing, alignment relative to end-of-file varies. The id stored next to an offset belongs to the *previous* object; read the id from the object header instead. Only top-level objects are indexed; most objects are serialised inline inside others.
 
-Needed for: timeline/history, sketches, parameters, **component placement** (B-rep blob transforms are identity, so occurrence transforms live here).
+### BulkStream objects [verified]
+- Header: `u32 n, n ASCII digits (per-class serialisation version, e.g. "341"), u64 object id`. Headers can be found for inline objects too.
+- Reference: `0x01, u64 object id`, followed by 2 or 3 bytes (varies).
+- Strings: `u32 char count + UTF-16LE`. Names, expressions (`198 mm`), feature names (`Extrude`, `Fillet`, `Sketch`, `Body->Comp`) are readable.
+
+### Classes decoded
+
+| class GUID | module | meaning | layout notes |
+|---|---|---|---|
+| `E03784ED-5E19-4E14-B9F2-3B07017018CD` | Fusion | component definition | name is the first non-internal UTF-16 string after the header [observed] |
+| `372234A0-2A6C-4122-8047-E74DBA04F326` | Body | component body container | reference to the component + UTF-16 `BREP.<guid>.smb` (and `.smbh`) [verified]; then `u32 N` + N pointers (runtime garbage) + `u32 N` + N u64 entity tags, one per top-level SAB entity (N = blob header count − 1) [verified] |
+| `CE2913AA-CFE0-4F04-9102-24424ED3BCFA` | Component | occurrence | see below [verified for identity + translation] |
+| `2D6E13A1-BBEF-4FB3-9277-00D99F634136` | Fusion | timeline feature (CreateComponent, CopyPaste…); CopyPaste carries the paste matrix [observed] |
+| `D3937028-C20C-4E65-B010-94AD418A5C20` | Body | per-body appearance/material (PrismMaterial ids) [observed] |
+
+**Occurrence** layout after the header: change-flag names (`Appearance`, `Geometry`, `PhysicalMaterial`, `Properties`, `StructureChange`, `Transform`), self reference, component reference, UTF-16 id string (`1_2495`), u8, u32, two GUID strings, u8, component reference again, then **u8 placement flag: 1 = identity (no matrix stored), 0 = 16 doubles, row-major 4×4, translation in m[3], m[7], m[11] in cm**, then a reference to the parent (root) object.
+Verified: a copy-pasted occurrence at (0, 6.2, 0) cm, matching its CopyPaste feature. Not yet verified: rotations (convention assumed `p' = M·p`), nested sub-assemblies (all samples are one level deep). The root occurrence in single-component designs uses a different layout without the `Transform` marker; the importer places the root at the origin.
+
+### Which bodies in a blob are current [heuristic]
+Each `.smb` holds the component's current bodies **plus** feature-cache bodies (tool bodies, sketch profiles, earlier states). The SAB header count gives the top-level saved entities (records `[0, count)`); nested caches come after.
+- Blobs that use `ATTRIB_CUSTOM` `Timestamp_attrib_def` attributes (newer files): the importer takes the tagged top-level bodies.
+- Untagged blobs (older files): the leading run of top-level body records, closed solids only (drops sketch profile sheets).
+
+Known gap: after "Create Components from Bodies", the root blob still holds the original tagged bodies (Sensor1: root bodies 56 and 62), which get imported as extra bodies. The exact current-body list is in the design data (`EntityTracking` / `Body` classes) and still needs decoding; ground truth (body names per component as shown in Fusion's browser) would settle it.
+
+### Still unknown
+Timeline features and their parameters, sketches (entities, constraints, dimensions), user parameters, joints. Plan: differential analysis of minimal test designs.
