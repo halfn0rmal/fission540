@@ -18,4 +18,5 @@ target_link_libraries(fission_tests PRIVATE Fission::features Fission::io Catch2
 fission_set_warnings(fission_tests)
 
 include(Catch)
-catch_discover_tests(fission_tests)
+# Catch2 exits with 4 when every selected test is skipped (e.g. no local .f3d samples).
+catch_discover_tests(fission_tests PROPERTIES SKIP_RETURN_CODE 4)
