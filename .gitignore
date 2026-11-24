@@ -13,3 +13,5 @@ CMakeUserPresets.json
 *.smb
 *.smbh
 tools/f3d/samples/
+__pycache__/
+*.pyc
