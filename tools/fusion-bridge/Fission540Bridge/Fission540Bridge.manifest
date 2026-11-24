@@ -1,0 +1,13 @@
+{
+    "autodeskProduct": "Fusion360",
+    "type": "addin",
+    "id": "6f1d6c3e-5b7a-4c33-9a0e-540f15510540",
+    "author": "Fission540",
+    "description": {
+        "": "Exports Fusion designs to Fission540 .f540x bundles (parameters, sketches, timeline, components, joints, STEP fallback)."
+    },
+    "version": "0.1.0",
+    "runOnStartup": false,
+    "supportedOS": "windows|mac",
+    "editEnabled": true
+}

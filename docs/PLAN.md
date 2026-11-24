@@ -78,6 +78,8 @@ Goal: designs move between Fission540 and Fusion 360 in both directions, paramet
 
 **Fusion bridge add-in (`tools/fusion-bridge/`, Python, Fusion API)** — one add-in, both directions, runs inside Fusion on Windows/macOS:
 
+Status: export command and batch project export written (`tools/fusion-bridge/Fission540Bridge`), schema 0 in `docs/formats/f540x.md`; not yet run inside Fusion. Import direction not started.
+
 - **Export:** writes each design to a `.f540x` bundle: JSON for user/model parameters, sketches (entities, constraints, dimensions), timeline features with their inputs, components/occurrences/transforms, joints, plus a STEP of every component as fallback geometry. Fission540 rebuilds each timeline entry as a native parametric feature where that feature type exists; unsupported features come in as frozen B-rep from the STEP fallback and are flagged in the timeline. Batch mode walks a Fusion project/hub folder and exports every design in one run.
 - **Import:** reads a `.f540` (or `.f540x`) and rebuilds it in Fusion through the API: parameters, sketches, timeline features, components, joints. Features Fusion's API cannot express are inserted as base-feature bodies and listed in a report. This is the supported way to open a Fission540 design in Fusion with its history.
 - The `.f540x` JSON schema is shared by both directions and versioned in `docs/formats/f540x.md`, so the add-in and Fission540 agree on one mapping per feature type.

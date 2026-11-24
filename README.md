@@ -24,7 +24,7 @@ On Wayland the app runs through XWayland (`QT_QPA_PLATFORM=xcb` is set automatic
 
 ## Opening Fusion 360 files
 
-File > Import reads `.f3d` geometry directly (bodies, all faces/edges). Sketches, timeline and component placement are not decoded yet. See [docs/formats/f3d.md](docs/formats/f3d.md).
+File > Import reads `.f3d` geometry directly (bodies, all faces/edges). Components are placed; sketches and the timeline are not decoded yet. See [docs/formats/f3d.md](docs/formats/f3d.md).
 
 Command-line check / conversion:
 
@@ -32,6 +32,10 @@ Command-line check / conversion:
 ./build/release/src/io/fission-f3d2step design.f3d out.step
 FISSION_F3D_SAMPLES=~/f3d-samples ctest --preset release -R f3d   # import a folder of your designs
 ```
+
+## Moving designs out of Fusion 360
+
+`tools/fusion-bridge/` is a Fusion add-in that exports designs (one, or a whole project) to `.f540x` bundles: parameters, sketches, timeline, components, joints, plus STEP and the original `.f3d`. See its [README](tools/fusion-bridge/README.md).
 
 ## Layout
 
@@ -44,6 +48,8 @@ src/viewer    OCCT 3D viewport widget
 src/ui        Main window, browser, timeline
 app/          Executable entry point
 tests/        Catch2 tests
+tools/fusion-bridge  Fusion 360 add-in: export to .f540x
+tools/f3d     .f3d format research scripts
 ```
 
 ## Licence

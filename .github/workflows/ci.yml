@@ -22,6 +22,11 @@ jobs:
           set -o pipefail
           cmake --build --preset ci 2>&1 | tee build.log
 
+      - name: Fusion bridge add-in tests
+        run: |
+          set -o pipefail
+          python3 -m unittest discover -s tools/fusion-bridge/tests 2>&1 | tee bridge.log
+
       - name: Test
         run: |
           set -o pipefail
@@ -33,6 +38,7 @@ jobs:
         if: failure()
         run: |
           if [ -f ctest.log ]; then src=ctest.log
+          elif grep -q -E 'FAILED|Error' bridge.log 2>/dev/null; then src=bridge.log
           elif [ -f build.log ]; then
             grep -n -A6 -E 'error|FAILED' build.log > errors.log || cp build.log errors.log
             src=errors.log
