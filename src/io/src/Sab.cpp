@@ -158,7 +158,12 @@ Document parse(std::span<const std::uint8_t> data) {
     while (!lex.atEnd()) {
         Record rec;
         bool inName = true;
-        while (lex.next(tok)) {
+        bool terminated = false;
+        while (!lex.atEnd()) {
+            if (!lex.next(tok)) {
+                terminated = true;
+                break;
+            }
             if (inName && (tok.kind == TokenKind::SubIdent || tok.kind == TokenKind::Ident)) {
                 if (!rec.type.empty()) {
                     rec.type += '-';
@@ -174,7 +179,10 @@ Document parse(std::span<const std::uint8_t> data) {
             tok = Token{};
         }
         if (startsWith(rec.type, "Begin-of-ASM-History") || startsWith(rec.type, "End-of-ASM")) {
-            break;
+            break; // ASM 232 blobs end with an unterminated End-of-ASM-data record
+        }
+        if (!terminated) {
+            throw SabError("sab: unexpected end of data");
         }
         doc.records.push_back(std::move(rec));
     }
