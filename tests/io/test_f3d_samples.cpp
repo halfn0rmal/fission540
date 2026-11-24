@@ -27,8 +27,7 @@ namespace {
 std::string joinWarnings(const io::F3dImportResult& result) {
     std::string out;
     for (const auto& w : result.warnings) {
-        out += "
-  warning: " + w;
+        out += "\n  warning: " + w;
     }
     return out;
 }
