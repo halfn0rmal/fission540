@@ -1,1 +1,1 @@
-"""Fusion design -> .f540x bundle (docs/formats/f540x.md)."""
+"""Fusion designs to and from .f540x bundles (docs/formats/f540x.md)."""

@@ -4,21 +4,24 @@ Commands (Utilities > Add-Ins panel):
   - Export to Fission540: writes the active design to a .f540x bundle.
   - Batch export project: writes every design in the active project to a folder,
     mirroring the project's folder structure.
+  - Import from Fission540: rebuilds a .f540x bundle in a new Fusion document.
 
 Bundle format: docs/formats/f540x.md in the Fission540 repository.
 """
 
 import os
 import re
+import shutil
 import traceback
 
 import adsk.core
 import adsk.fusion
 
-from .f540x import exporter
+from .f540x import exporter, importer
 
 CMD_EXPORT = "fission540BridgeExport"
 CMD_BATCH = "fission540BridgeBatchExport"
+CMD_IMPORT = "fission540BridgeImport"
 PANEL_ID = "SolidScriptsAddinsPanel"
 
 _app = None
@@ -37,6 +40,9 @@ def run(context):
         _add_command(CMD_BATCH, "Batch export project to Fission540",
                      "Export every design in the active project to .f540x bundles.",
                      _BatchCreated())
+        _add_command(CMD_IMPORT, "Import from Fission540",
+                     "Rebuild a Fission540 .f540x bundle in a new Fusion design.",
+                     _ImportCreated())
     except Exception:
         if _ui:
             _ui.messageBox("Fission540 bridge failed to start:\n" + traceback.format_exc())
@@ -45,7 +51,7 @@ def run(context):
 def stop(context):
     try:
         panel = _ui.allToolbarPanels.itemById(PANEL_ID)
-        for cmd_id in (CMD_EXPORT, CMD_BATCH):
+        for cmd_id in (CMD_EXPORT, CMD_BATCH, CMD_IMPORT):
             if panel:
                 control = panel.controls.itemById(cmd_id)
                 if control:
@@ -201,3 +207,56 @@ class _BatchExecute(adsk.core.CommandEventHandler):
             _ui.messageBox(text, "Fission540 batch export")
         except Exception:
             _ui.messageBox("Batch export failed:\n" + traceback.format_exc())
+
+
+# ---- Import -----------------------------------------------------------------------
+
+class _ImportCreated(adsk.core.CommandCreatedEventHandler):
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        handler = _ImportExecute()
+        args.command.execute.add(handler)
+        _handlers.append(handler)
+
+
+class _ImportExecute(adsk.core.CommandEventHandler):
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        try:
+            dialog = _ui.createFileDialog()
+            dialog.title = "Import from Fission540"
+            dialog.filter = "Fission540 bundles (*.f540x;*.f540)"
+            dialog.isMultiSelectEnabled = True
+            if dialog.showOpen() != adsk.core.DialogResults.DialogOK:
+                return
+            paths = list(dialog.filenames) or [dialog.filename]
+            summaries = []
+            for path in paths:
+                summaries.append(_import_one(path))
+            _ui.messageBox("\n\n".join(summaries), "Fission540 import")
+        except Exception:
+            _ui.messageBox("Import failed:\n" + traceback.format_exc())
+
+
+def _import_one(path):
+    """Imports one bundle into its own document. Returns the text to report."""
+    directory = None
+    try:
+        report, directory = importer.import_bundle(_app, path)
+    except importer.Unsupported as why:
+        return "%s was not imported:\n%s" % (os.path.basename(path), why)
+    except Exception:
+        return "%s failed:\n%s" % (os.path.basename(path), traceback.format_exc())
+    finally:
+        # The bundle is unpacked only for the STEP files the import may fall back to.
+        if directory:
+            shutil.rmtree(directory, ignore_errors=True)
+    log = importer.write_log(path, report)
+    text = report.text(os.path.basename(path))
+    if log:
+        text += "\n\nLog: " + log
+    return text

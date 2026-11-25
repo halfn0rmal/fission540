@@ -35,7 +35,7 @@ FISSION_F3D_SAMPLES=~/f3d-samples ctest --preset release -R f3d   # import a fol
 
 ## Moving designs out of Fusion 360
 
-`tools/fusion-bridge/` is a Fusion add-in that exports designs (one, or a whole project) to `.f540x` bundles: parameters, sketches, timeline, components, joints, plus STEP and the original `.f3d`. See its [README](tools/fusion-bridge/README.md).
+`tools/fusion-bridge/` is a Fusion add-in that works both ways: it exports designs (one, or a whole project) to `.f540x` bundles — parameters, sketches, timeline, components, joints, plus STEP and the original `.f3d` — and rebuilds a bundle back in Fusion as a parametric design. See its [README](tools/fusion-bridge/README.md).
 
 ## Layout
 
@@ -48,7 +48,7 @@ src/viewer    OCCT 3D viewport widget
 src/ui        Main window, browser, timeline
 app/          Executable entry point
 tests/        Catch2 tests
-tools/fusion-bridge  Fusion 360 add-in: export to .f540x
+tools/fusion-bridge  Fusion 360 add-in: .f540x export and import
 tools/f3d     .f3d format research scripts
 ```
 

@@ -4,9 +4,9 @@
     "id": "6f1d6c3e-5b7a-4c33-9a0e-540f15510540",
     "author": "Fission540",
     "description": {
-        "": "Exports Fusion designs to Fission540 .f540x bundles (parameters, sketches, timeline, components, joints, STEP fallback)."
+        "": "Moves designs between Fusion 360 and Fission540: exports Fusion designs to .f540x bundles (parameters, sketches, timeline, components, joints, STEP fallback) and rebuilds bundles back in Fusion."
     },
-    "version": "0.1.0",
+    "version": "0.2.0",
     "runOnStartup": false,
     "supportedOS": "windows|mac",
     "editEnabled": true

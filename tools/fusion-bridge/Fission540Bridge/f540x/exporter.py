@@ -15,77 +15,10 @@ import zipfile
 import adsk.core
 import adsk.fusion
 
+from .api import (enum, enum_name, is_parameter, iterate, matrix, point, probe,
+                  short_type, token)
+
 SCHEMA = "f540x/0"
-
-
-# ---- small helpers ----------------------------------------------------------------
-
-def short_type(obj):
-    """'adsk::fusion::ExtrudeFeature' -> 'ExtrudeFeature'."""
-    try:
-        return obj.objectType.split("::")[-1]
-    except Exception:
-        return type(obj).__name__
-
-
-def probe(obj, attr):
-    """Attribute value, or None if this object type does not have it or it is invalid."""
-    try:
-        return getattr(obj, attr)
-    except Exception:
-        return None
-
-
-def point(p):
-    return None if p is None else [p.x, p.y, p.z]
-
-
-def matrix(m):
-    return None if m is None else list(m.asArray())
-
-
-def token(obj):
-    return probe(obj, "entityToken")
-
-
-_enum_names = {}
-
-
-def enum(module, name):
-    """Enum class by name, or None if this Fusion version does not have it."""
-    return getattr(module, name, None)
-
-
-def enum_name(enum_class, value):
-    """Fusion enum value -> its API name (falls back to the integer)."""
-    if value is None or enum_class is None:
-        return value
-    key = id(enum_class)
-    if key not in _enum_names:
-        names = {}
-        for name in dir(enum_class):
-            if not name.startswith("_"):
-                v = getattr(enum_class, name)
-                if isinstance(v, int):
-                    names.setdefault(v, name)
-        _enum_names[key] = names
-    return _enum_names[key].get(value, value)
-
-
-def is_parameter(obj):
-    return short_type(obj) in ("ModelParameter", "UserParameter", "Parameter")
-
-
-def iterate(collection):
-    """Items of a Fusion collection (or ObjectCollection / Python list)."""
-    if collection is None:
-        return []
-    if isinstance(collection, (list, tuple)):
-        return list(collection)
-    count = probe(collection, "count")
-    if count is None:
-        return [collection]
-    return [collection.item(i) for i in range(count)]
 
 
 class IdMap:
@@ -411,8 +344,12 @@ class Exporter:
         return loops
 
     def nurbs(self, geometry):
+        """NURBS form of any curve, which the importer can always rebuild."""
+        if geometry is None:
+            return None
+        curve = probe(geometry, "asNurbsCurve") or geometry
         try:
-            ok, control_points, degree, knots, rational, weights, periodic = geometry.getData()
+            ok, control_points, degree, knots, rational, weights, periodic = curve.getData()
         except Exception:
             return None
         if not ok:
@@ -456,6 +393,7 @@ class Exporter:
             if t == "SketchEllipticalArc":
                 d["start"] = pid(probe(curve, "startSketchPoint"))
                 d["end"] = pid(probe(curve, "endSketchPoint"))
+            d["nurbs"] = self.nurbs(geometry)
         elif t == "SketchFittedSpline":
             d["fitPoints"] = [pid(p) for p in iterate(probe(curve, "fitPoints"))]
             d["closed"] = probe(curve, "isClosed")
@@ -467,6 +405,7 @@ class Exporter:
             d["end"] = pid(probe(curve, "endSketchPoint"))
             d["apex"] = pid(probe(curve, "apexSketchPoint"))
             d["rho"] = probe(curve, "rhoValue")
+            d["nurbs"] = self.nurbs(geometry)
         else:
             d["unsupported"] = True
             d["nurbs"] = self.nurbs(geometry)
@@ -600,9 +539,38 @@ class Exporter:
             "ScaleFeature": [("inputEntities", "inputEntities", "ref"), ("point", "point", "ref"),
                              ("scaleFactor", "scale", "param")],
             "OffsetFacesFeature": [("faces", "faces", "ref"), ("distance", "distance", "param")],
-            "LoftFeature": [("operation", "operation", ops)],
+            "LoftFeature": [("operation", "operation", ops),
+                            ("isSolid", "solid", "value"),
+                            ("isClosed", "closed", "value")],
         }
         return specs.get(t)
+
+    def hole_position(self, definition):
+        """Where a hole is placed: the definition's type and the entities it refers to."""
+        if definition is None:
+            return None
+        d = {"type": short_type(definition)}
+        attrs = ["sketchPoint", "sketchPoints", "planarEntity", "point", "edge", "edgeOne",
+                 "edgeTwo", "offsetOne", "offsetTwo", "centerAxis", "position", "distance",
+                 "isFlipped"]
+        d.update(self.describe(definition, [(a, a, "paramOrRef") for a in attrs]))
+        return d
+
+    def loft_sections(self, feature):
+        """Loft profiles and rails, in order."""
+        d = {}
+        sections = [probe(s, "entity") for s in iterate(probe(feature, "loftSections"))]
+        sections = [self.ref(s) for s in sections if s is not None]
+        if sections:
+            d["sections"] = sections
+        rails = [probe(r, "entity") for r in iterate(probe(feature, "loftRails"))]
+        rails = [self.ref(r) for r in rails if r is not None]
+        if rails:
+            d["rails"] = rails
+        centerline = probe(feature, "centerLineOrRails")
+        if centerline is not None and probe(centerline, "isCenterLine"):
+            d["centerLine"] = self.ref(probe(centerline, "centerLine"))
+        return d
 
     def edge_sets(self, feature):
         out = []
@@ -630,6 +598,10 @@ class Exporter:
             defn = probe(feature, "definition")
             d["definition"] = self.construction_definition(defn) if defn is not None else None
             return d
+        if t == "HoleFeature":
+            d.update(self.describe(feature, self.feature_spec(t) or []))
+            d["positionDefinition"] = self.hole_position(probe(feature, "holePositionDefinition"))
+            return d
         if t in ("FilletFeature", "ChamferFeature"):
             d["edgeSets"] = self.edge_sets(feature)
             if t == "ChamferFeature" and not d["edgeSets"]:
@@ -641,6 +613,8 @@ class Exporter:
             d["unsupported"] = True
         else:
             d.update(self.describe(feature, spec))
+        if t == "LoftFeature":
+            d.update(self.loft_sections(feature))
         return d
 
     # -- timeline -----------------------------------------------------------------------
@@ -720,9 +694,10 @@ class Exporter:
             ("maxEnabled", "isMaximumValueEnabled"), ("max", "maximumValue"),
             ("restEnabled", "isRestValueEnabled"), ("rest", "restValue"))}
 
-    def joint(self, joint, kind):
+    def joint(self, joint, kind, component_id=None):
         motion = probe(joint, "jointMotion")
         d = {"id": self.joints.get(joint), "name": probe(joint, "name"), "kind": kind,
+             "component": component_id,
              "motion": short_type(motion) if motion is not None else None,
              "occurrenceOne": self.ref(probe(joint, "occurrenceOne")),
              "occurrenceTwo": self.ref(probe(joint, "occurrenceTwo")),
@@ -779,7 +754,7 @@ class Exporter:
             for collection, kind in (("joints", "joint"), ("asBuiltJoints", "asBuilt")):
                 for j in iterate(probe(comp, collection)):
                     try:
-                        joints.append(self.joint(j, kind))
+                        joints.append(self.joint(j, kind, self.component_id(comp)))
                     except Exception:
                         self.warn("joint %s" % probe(j, "name"))
 
