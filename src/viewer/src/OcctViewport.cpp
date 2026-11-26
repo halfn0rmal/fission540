@@ -4,17 +4,43 @@
 
 #include <AIS_ViewCube.hxx>
 #include <Aspect_DisplayConnection.hxx>
+#include <Font_FontMgr.hxx>
 #include <Graphic3d_TransformPers.hxx>
 #include <OpenGl_GraphicDriver.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Quantity_Color.hxx>
 #include <Xw_Window.hxx>
 
+#include <QFont>
+#include <QFontInfo>
 #include <QMouseEvent>
 #include <QWheelEvent>
 
+#include <utility>
+
 namespace fission::viewer {
 namespace {
+
+// OCCT resolves the generic families through its own alias lists (DejaVu and
+// the like), which match nothing on systems without those fonts, leaving the
+// ViewCube unlabelled. Add whatever fontconfig picks for each family, via Qt.
+void registerSystemFontAliases() {
+    static const bool done = [] {
+        const Handle(Font_FontMgr) fonts = Font_FontMgr::GetInstance();
+        for (const auto& [alias, hint] : {std::pair{"sans-serif", QFont::SansSerif},
+                                          std::pair{"serif", QFont::Serif},
+                                          std::pair{"monospace", QFont::Monospace}}) {
+            QFont font(QString::fromLatin1(alias));
+            font.setStyleHint(hint);
+            const QByteArray family = QFontInfo(font).family().toUtf8();
+            if (!family.isEmpty()) {
+                fonts->AddFontAlias(alias, TCollection_AsciiString(family.constData()));
+            }
+        }
+        return true;
+    }();
+    (void)done;
+}
 
 Aspect_VKeyMouse toOcctButtons(Qt::MouseButtons buttons) {
     Aspect_VKeyMouse result = Aspect_VKeyMouse_NONE;
@@ -74,6 +100,7 @@ void OcctViewport::initViewer() {
         return;
     }
 
+    registerSystemFontAliases();
     Handle(Aspect_DisplayConnection) display = new Aspect_DisplayConnection();
     Handle(OpenGl_GraphicDriver) driver = new OpenGl_GraphicDriver(display, false);
 

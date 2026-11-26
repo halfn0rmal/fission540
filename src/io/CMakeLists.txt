@@ -13,9 +13,15 @@ add_library(fission_io
 add_library(Fission::io ALIAS fission_io)
 target_include_directories(fission_io PUBLIC include)
 target_link_libraries(fission_io PUBLIC Fission::kernel PRIVATE ZLIB::ZLIB PkgConfig::ZSTD)
+# OCCT 7.8 merged the four STEP toolkits into TKDESTEP.
+if(OpenCASCADE_VERSION VERSION_GREATER_EQUAL 7.8)
+    set(FISSION_OCCT_STEP_LIBS TKDESTEP)
+else()
+    set(FISSION_OCCT_STEP_LIBS TKSTEP TKSTEPBase TKSTEPAttr TKSTEP209)
+endif()
 fission_link_occt(fission_io PRIVATE
     TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKShHealing
-    TKXSBase TKSTEP TKSTEPBase TKSTEPAttr TKSTEP209)
+    TKXSBase ${FISSION_OCCT_STEP_LIBS})
 fission_set_warnings(fission_io)
 
 add_executable(fission-f3d2step tools/f3d2step.cpp)
