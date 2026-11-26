@@ -95,7 +95,7 @@ Status: both directions written (`tools/fusion-bridge/Fission540Bridge`) — exp
 - Uses Ubuntu 24.04's OCCT 7.6 for now; move to OCCT 7.8+ built from source when needed.
 
 ## Critical early files
-- `CMakeLists.txt`, `CMakePresets.json`, `scripts/setup-ubuntu.sh` (deps + OCCT build)
+- `CMakeLists.txt`, `CMakePresets.json`, `scripts/setup-ubuntu.sh`, `scripts/setup-arch.sh` (deps)
 - `src/kernel/Shape.h`, `src/kernel/occt/OcctShape.cpp`
 - `src/core/Document.h`, `src/core/Timeline.h`, `src/core/Feature.h`, `src/core/NamingService.h`, `src/core/Parameters.h`
 - `src/sketch/Sketch.h`, `src/sketch/SolverAdapter.cpp` (wraps PlaneGCS)

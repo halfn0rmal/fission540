@@ -10,10 +10,11 @@ Status: early skeleton (Phase 0). See [docs/PLAN.md](docs/PLAN.md) for the archi
 - OpenCascade (OCCT) geometry kernel, accessed only through `src/kernel`
 - Catch2 tests
 
-## Build (Ubuntu 24.04)
+## Build
 
 ```sh
-./scripts/setup-ubuntu.sh        # installs build dependencies (sudo)
+./scripts/setup-ubuntu.sh        # Ubuntu 24.04: installs build dependencies (sudo)
+./scripts/setup-arch.sh          # or Arch Linux / Omarchy (sudo; update the system first)
 cmake --preset release
 cmake --build --preset release
 ctest --preset release
